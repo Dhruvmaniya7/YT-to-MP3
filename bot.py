@@ -14,7 +14,7 @@ from telegram.ext import (
 
 # --- ⚙️ CONFIGURATION & CONSTANTS ⚙️ ---
 CREATOR_NAME = "shadow maniya"
-CONNECT_LINK = "https://dhruvmaniyaportfolio.vercel.app/"
+CONNECT_LINK = "https://www.linkedin.com/in/dhruv-maniya-shadow03"
 WELCOME_IMAGE_URL = "https://i.ibb.co/bMNj87bT/download.jpg"
 
 # --- 💡 BOT SETTINGS 💡 ---
@@ -185,3 +185,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
