@@ -11,16 +11,16 @@ from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, fil
 # --- ⚙️ CONFIGURATION - EDIT THESE VALUES ⚙️ ---
 # Your details for attribution and the connect link
 CREATOR_NAME = "shadow maniya"
-CONNECT_LINK = "https://your-telegram-or-social-media-link.com" # <--- CHANGE THIS
+CONNECT_LINK = "https://dhruvmaniyaportfolio.vercel.app/" 
 
 # --- 🔐 ADD YOUR USER ID FOR PRIVATE ACCESS 🔐 ---
 # Paste the User ID you got from @userinfobot here.
 # For multiple users: [123456789, 987654321]
-ALLOWED_USER_IDS = [123456789] # <--- CHANGE THIS
+ALLOWED_USER_IDS = [1368109334] # <--- CHANGE THIS
 
 # --- Bot Setup ---
 # Load the bot token from the server environment for security
-BOT_TOKEN = os.getenv("BOT_TOKEN")
+BOT_TOKEN = os.getenv("8150534060:AAGJeGO-rIkcgNrmwpLU3rjsmk4GGuISi0k")
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
