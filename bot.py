@@ -2,6 +2,7 @@ import logging
 import os
 import time
 import asyncio
+import re
 import yt_dlp
 from functools import wraps
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -11,42 +12,30 @@ from telegram.ext import (
     ConversationHandler, CallbackQueryHandler
 )
 
-# --- ⚙️ CONFIGURATION - EDIT THESE VALUES ⚙️ ---
+# --- ⚙️ CONFIGURATION & CONSTANTS ⚙️ ---
 CREATOR_NAME = "shadow maniya"
 CONNECT_LINK = "https://dhruvmaniyaportfolio.vercel.app/"
-WELCOME_IMAGE_URL = "https://i.ibb.co/bMNj87bT/download.jpg"  # A generic welcome image URL
+WELCOME_IMAGE_URL = "https://i.ibb.co/bMNj87bT/download.jpg"
 
-# --- 🔐 TO MAKE THE BOT PRIVATE, UNCOMMENT THE LINES BELOW 🔐 ---
-# 1. Uncomment this list and add your User ID.
-# ALLOWED_USER_IDS = [1368109334] 
+# --- 💡 BOT SETTINGS 💡 ---
+MAX_DURATION = 900  # Maximum video duration in seconds (900s = 15 minutes)
+CONVERSATION_TIMEOUT = 300 # 5 minute timeout for conversations
+
+# --- ✨ ANIMATIONS ✨ ---
+PROCESSING_ANIMATION = ["⚙️ Processing", "⚙️⚙️ Processing.", "⚙️⚙️⚙️ Processing..", "⚙️⚙️⚙️⚙️ Processing..."]
 
 # --- Bot Setup ---
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-
-# --- NEW: Define states for our conversation ---
 ASK_RENAME, GET_NEW_NAME = range(2)
-
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# --- 🔐 2. Uncomment this entire function to re-enable the security check 🔐 ---
-# def restricted_access(func):
-#     @wraps(func)
-#     async def wrapped(update: Update, context: ContextTypes.DEFAULT_TYPE, *args, **kwargs):
-#         user_id = update.effective_user.id
-#         if user_id not in ALLOWED_USER_IDS:
-#             logger.warning(f"Unauthorized access denied for {user_id}.")
-#             await context.bot.send_message(chat_id=update.effective_chat.id, text="❌ Access Denied. This is a private bot.")
-#             return
-#         return await func(update, context, *args, **kwargs)
-#     return wrapped
-
 # --- Reusable Download Logic ---
 async def download_and_send_audio(chat_id, url, custom_filename, context: ContextTypes.DEFAULT_TYPE):
-    processing_message = await context.bot.send_message(chat_id=chat_id, text="🔄 Starting process...")
+    processing_message = await context.bot.send_message(chat_id=chat_id, text="🔄 Preparing to download...")
     
     progress_hook = lambda d: asyncio.ensure_future(update_progress_message(d, context, processing_message))
-
+    
     ydl_opts = {
         'format': 'bestaudio/best',
         'postprocessors': [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3', 'preferredquality': '320'}],
@@ -77,36 +66,53 @@ async def download_and_send_audio(chat_id, url, custom_filename, context: Contex
         await processing_message.edit_text(error_message, parse_mode=ParseMode.MARKDOWN)
         logger.error(f"Error processing link: {e}", exc_info=True)
     finally:
-        if mp3_file_path and os.path.exists(mp3_file_path):
-            os.remove(mp3_file_path)
-        if 'error' not in locals().get('error_message', '').lower():
-             await processing_message.delete()
+        if mp3_file_path and os.path.exists(mp3_file_path): os.remove(mp3_file_path)
+        if 'error' not in locals().get('error_message', '').lower(): await processing_message.delete()
 
 # --- Conversation Handlers ---
-# 🔐 3. To make private, uncomment the line below 🔐
-# @restricted_access
 async def handle_new_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Entry point for the conversation. Asks the user if they want to rename."""
+    """Entry point: Validates link and checks duration before asking to rename."""
     url = update.message.text
-    context.user_data['url'] = url
-
-    keyboard = [
-        [InlineKeyboardButton("✅ Keep Original Title", callback_data='keep_original')],
-        [InlineKeyboardButton("✏️ Rename File", callback_data='rename_file')],
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
     
-    await update.message.reply_text("I've received your link. What would you like to name the file?", reply_markup=reply_markup)
+    youtube_regex = (r'(https?://)?(www\.)?'
+                     r'(youtube|youtu|youtube-nocookie)\.(com|be)/'
+                     r'(watch\?v=|embed/|v/|.+\?v=)?([^&=%\?]{11})')
+    if not re.match(youtube_regex, url):
+        await update.message.reply_text("⚠️ This doesn't look like a valid YouTube link. Please try again.")
+        return ConversationHandler.END
+
+    pre_check_message = await update.message.reply_text("🔍 Checking video details...")
+    
+    try:
+        with yt_dlp.YoutubeDL({'noplaylist': True, 'quiet': True}) as ydl:
+            info_dict = ydl.extract_info(url, download=False)
+            duration = info_dict.get('duration', 0)
+        
+        if duration > MAX_DURATION:
+            # --- THIS IS THE UPDATED ONE-LINE ERROR MESSAGE ---
+            error_message = f"❌ *Video is too long!* This bot can only process videos under {MAX_DURATION // 60} minutes to avoid errors and long waits."
+            await pre_check_message.edit_text(text=error_message, parse_mode=ParseMode.MARKDOWN)
+            return ConversationHandler.END
+
+    except Exception as e:
+        await pre_check_message.edit_text(f"❌ Could not check the video. It might be private or invalid.\n\n`{str(e)}`")
+        logger.error(f"Pre-check failed for {url}: {e}")
+        return ConversationHandler.END
+
+    await pre_check_message.delete()
+    context.user_data['url'] = url
+    keyboard = [[InlineKeyboardButton("✅ Keep Original Title", callback_data='keep_original')],
+                [InlineKeyboardButton("✏️ Rename File", callback_data='rename_file')]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.message.reply_text("Video is valid! What would you like to name the file?", reply_markup=reply_markup)
     return ASK_RENAME
 
 async def ask_rename_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handles the user's choice from the inline buttons."""
     query = update.callback_query
     await query.answer()
-    
     url = context.user_data.get('url')
     if not url:
-        await query.edit_message_text(text="Sorry, something went wrong. Please send the link again.")
+        await query.edit_message_text(text="Sorry, I lost the link. Please send it again.")
         return ConversationHandler.END
 
     if query.data == 'keep_original':
@@ -118,8 +124,8 @@ async def ask_rename_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         return GET_NEW_NAME
 
 async def get_new_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Receives the new filename and starts the download."""
-    new_filename = update.message.text
+    new_filename = update.message.text.strip()
+    new_filename = re.sub(r'[\\/*?:"<>|]', "", new_filename)
     url = context.user_data.get('url')
     
     await update.message.reply_text(f"Got it! I'll name the file: `{new_filename}`", parse_mode=ParseMode.MARKDOWN)
@@ -127,21 +133,14 @@ async def get_new_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 # --- Other Commands and Helpers ---
-# 🔐 3. To make private, uncomment the line below 🔐
-# @restricted_access
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_name = update.effective_user.first_name
-    welcome_caption = (
-        f"👋 Hello, {user_name}!\n\nI am a YouTube to MP3 converter bot, created by *{CREATOR_NAME}*.\n\n"
-        "Send me a YouTube video link to begin.\n\n⚠️ *Disclaimer*: This tool is for personal use only."
-    )
-    await context.bot.send_photo(
-        chat_id=update.effective_chat.id, photo=WELCOME_IMAGE_URL, caption=welcome_caption,
-        parse_mode=ParseMode.MARKDOWN
-    )
+    welcome_caption = (f"👋 Hello, {user_name}!\n\nI am a YouTube to MP3 converter bot, created by *{CREATOR_NAME}*.\n\n"
+                       "Send me a YouTube video link to begin.\n\n⚠️ *Disclaimer*: This tool is for personal use only.")
+    await context.bot.send_photo(chat_id=update.effective_chat.id, photo=WELCOME_IMAGE_URL, caption=welcome_caption,
+                                 parse_mode=ParseMode.MARKDOWN)
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Cancels the current conversation."""
     await update.message.reply_text("Operation cancelled.")
     return ConversationHandler.END
 
@@ -151,15 +150,14 @@ async def update_progress_message(d, context: ContextTypes.DEFAULT_TYPE, message
         if now - context.bot_data.get('last_update', 0) < 2: return
         progress_text = (f"Downloading...\n📈 **Progress**: `{d['_percent_str']}`\n"
                          f"💨 **Speed**: `{d['_speed_str']}`\n⏳ **ETA**: `{d['_eta_str']}`")
-        try:
-            await context.bot.edit_message_text(text=progress_text, chat_id=message.chat_id, 
-                                                message_id=message.message_id, parse_mode=ParseMode.MARKDOWN)
-            context.bot_data['last_update'] = now
-        except Exception as e:
-            if "Message is not modified" not in str(e): logger.warning(f"Could not edit message: {e}")
+        try: await context.bot.edit_message_text(text=progress_text, chat_id=message.chat_id, message_id=message.message_id, parse_mode=ParseMode.MARKDOWN)
+        except: pass
     elif d['status'] == 'finished':
-        await context.bot.edit_message_text(text="✅ Download finished. Now converting...", 
-                                            chat_id=message.chat_id, message_id=message.message_id)
+        for frame in PROCESSING_ANIMATION:
+            try:
+                await context.bot.edit_message_text(text=frame, chat_id=message.chat_id, message_id=message.message_id)
+                await asyncio.sleep(0.5)
+            except: break
 
 # --- Main Bot Execution ---
 def main():
@@ -176,13 +174,13 @@ def main():
             GET_NEW_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_new_name)],
         },
         fallbacks=[CommandHandler('cancel', cancel)],
-        conversation_timeout=300 # 5 minute timeout
+        conversation_timeout=CONVERSATION_TIMEOUT
     )
     
     application.add_handler(CommandHandler("start", start))
     application.add_handler(conv_handler)
     
-    print("Bot is up and running with all features...")
+    print("🚀 Bot is up and running with all features!")
     application.run_polling()
 
 if __name__ == '__main__':
