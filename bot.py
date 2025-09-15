@@ -11,42 +11,45 @@ from telegram.ext import (
     ConversationHandler, CallbackQueryHandler
 )
 
-# --- ⚙️ CONFIGURATION ⚙️ ---
+# --- ⚙️ CONFIGURATION - EDIT THESE VALUES ⚙️ ---
 CREATOR_NAME = "shadow maniya"
 CONNECT_LINK = "https://dhruvmaniyaportfolio.vercel.app/"
-ALLOWED_USER_IDS = [1368109334,5246416087,5246416087]
+# WELCOME_IMAGE_URL = "https://i.imgur.com/8V5Xk2j.png"  # A generic welcome image URL
+
+# --- 🔐 TO MAKE THE BOT PRIVATE, UNCOMMENT THE LINES BELOW 🔐 ---
+# 1. Uncomment this list and add your User ID.
+# ALLOWED_USER_IDS = [1368109334] 
+
+# --- Bot Setup ---
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 
 # --- NEW: Define states for our conversation ---
 ASK_RENAME, GET_NEW_NAME = range(2)
 
-# --- Bot Setup ---
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# --- Authorization Decorator ---
-def restricted_access(func):
-    @wraps(func)
-    async def wrapped(update: Update, context: ContextTypes.DEFAULT_TYPE, *args, **kwargs):
-        user_id = update.effective_user.id
-        if user_id not in ALLOWED_USER_IDS:
-            logger.warning(f"Unauthorized access denied for {user_id}.")
-            await context.bot.send_message(chat_id=update.effective_chat.id, text="❌ Access Denied.")
-            return
-        return await func(update, context, *args, **kwargs)
-    return wrapped
+# --- 🔐 2. Uncomment this entire function to re-enable the security check 🔐 ---
+# def restricted_access(func):
+#     @wraps(func)
+#     async def wrapped(update: Update, context: ContextTypes.DEFAULT_TYPE, *args, **kwargs):
+#         user_id = update.effective_user.id
+#         if user_id not in ALLOWED_USER_IDS:
+#             logger.warning(f"Unauthorized access denied for {user_id}.")
+#             await context.bot.send_message(chat_id=update.effective_chat.id, text="❌ Access Denied. This is a private bot.")
+#             return
+#         return await func(update, context, *args, **kwargs)
+#     return wrapped
 
 # --- Reusable Download Logic ---
 async def download_and_send_audio(chat_id, url, custom_filename, context: ContextTypes.DEFAULT_TYPE):
     processing_message = await context.bot.send_message(chat_id=chat_id, text="🔄 Starting process...")
     
-    # Use a lambda for the progress hook to pass arguments
     progress_hook = lambda d: asyncio.ensure_future(update_progress_message(d, context, processing_message))
 
     ydl_opts = {
         'format': 'bestaudio/best',
         'postprocessors': [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3', 'preferredquality': '320'}],
-        # NEW: Use the custom_filename if provided, otherwise use the video title
         'outtmpl': f"{custom_filename}.%(ext)s" if custom_filename else '%(title)s.%(ext)s',
         'noplaylist': True, 'logger': logger, 'progress_hooks': [progress_hook]
     }
@@ -80,11 +83,12 @@ async def download_and_send_audio(chat_id, url, custom_filename, context: Contex
              await processing_message.delete()
 
 # --- Conversation Handlers ---
-@restricted_access
+# 🔐 3. To make private, uncomment the line below 🔐
+# @restricted_access
 async def handle_new_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Entry point for the conversation. Asks the user if they want to rename."""
     url = update.message.text
-    context.user_data['url'] = url  # Store the URL to use later
+    context.user_data['url'] = url
 
     keyboard = [
         [InlineKeyboardButton("✅ Keep Original Title", callback_data='keep_original')],
@@ -107,7 +111,6 @@ async def ask_rename_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     if query.data == 'keep_original':
         await query.edit_message_text(text="Great! Using the original title.")
-        # Pass None for custom_filename to use the default title
         await download_and_send_audio(query.message.chat_id, url, None, context)
         return ConversationHandler.END
     elif query.data == 'rename_file':
@@ -124,17 +127,16 @@ async def get_new_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 # --- Other Commands and Helpers ---
-@restricted_access
+# 🔐 3. To make private, uncomment the line below 🔐
+# @restricted_access
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # This start function remains the same, with the welcome image
     user_name = update.effective_user.first_name
-    photo_url = "https://i.imgur.com/8V5Xk2j.png"
     welcome_caption = (
-        f"👋 Hello, {user_name}!\n\nI am a private YouTube to MP3 converter bot, created by *{CREATOR_NAME}*.\n\n"
+        f"👋 Hello, {user_name}!\n\nI am a YouTube to MP3 converter bot, created by *{CREATOR_NAME}*.\n\n"
         "Send me a YouTube video link to begin.\n\n⚠️ *Disclaimer*: This tool is for personal use only."
     )
     await context.bot.send_photo(
-        chat_id=update.effective_chat.id, photo=photo_url, caption=welcome_caption,
+        chat_id=update.effective_chat.id, photo=WELCOME_IMAGE_URL, caption=welcome_caption,
         parse_mode=ParseMode.MARKDOWN
     )
 
@@ -167,7 +169,6 @@ def main():
     
     application = ApplicationBuilder().token(BOT_TOKEN).build()
     
-    # NEW: Setup the ConversationHandler
     conv_handler = ConversationHandler(
         entry_points=[MessageHandler(filters.TEXT & ~filters.COMMAND, handle_new_link)],
         states={
@@ -179,11 +180,10 @@ def main():
     )
     
     application.add_handler(CommandHandler("start", start))
-    application.add_handler(conv_handler) # Add the conversation handler
+    application.add_handler(conv_handler)
     
-    print("Bot is up and running with conversation support...")
+    print("Bot is up and running with all features...")
     application.run_polling()
 
 if __name__ == '__main__':
-
     main()
