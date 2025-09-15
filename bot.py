@@ -20,7 +20,7 @@ ALLOWED_USER_IDS = [1368109334] # <--- CHANGE THIS
 
 # --- Bot Setup ---
 # Load the bot token from the server environment for security
-BOT_TOKEN = os.getenv("8150534060:AAGJeGO-rIkcgNrmwpLU3rjsmk4GGuISi0k")
+BOT_TOKEN = os.getenv("BOT_TOKEN")
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -139,4 +139,5 @@ def main():
     application.run_polling()
 
 if __name__ == '__main__':
+
     main()
