@@ -14,7 +14,7 @@ from telegram.ext import (
 # --- ⚙️ CONFIGURATION - EDIT THESE VALUES ⚙️ ---
 CREATOR_NAME = "shadow maniya"
 CONNECT_LINK = "https://dhruvmaniyaportfolio.vercel.app/"
-# WELCOME_IMAGE_URL = "https://i.imgur.com/8V5Xk2j.png"  # A generic welcome image URL
+WELCOME_IMAGE_URL = "https://i.ibb.co/bMNj87bT/download.jpg"  # A generic welcome image URL
 
 # --- 🔐 TO MAKE THE BOT PRIVATE, UNCOMMENT THE LINES BELOW 🔐 ---
 # 1. Uncomment this list and add your User ID.
@@ -167,7 +167,7 @@ def main():
         print("FATAL ERROR: BOT_TOKEN environment variable not found.")
         return
     
-    application = ApplicationBuilder().token(BOT_TOKEN).build()
+    application = ApplicationBuilder().token(BOT_TOKEN).connect_timeout(30).read_timeout(30).write_timeout(30).build()
     
     conv_handler = ConversationHandler(
         entry_points=[MessageHandler(filters.TEXT & ~filters.COMMAND, handle_new_link)],
