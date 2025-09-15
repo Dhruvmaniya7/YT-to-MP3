@@ -14,7 +14,7 @@ from telegram.ext import (
 # --- ⚙️ CONFIGURATION ⚙️ ---
 CREATOR_NAME = "shadow maniya"
 CONNECT_LINK = "https://dhruvmaniyaportfolio.vercel.app/"
-ALLOWED_USER_IDS = [1368109334]
+ALLOWED_USER_IDS = [1368109334,5246416087,5246416087]
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 
 # --- NEW: Define states for our conversation ---
@@ -185,4 +185,5 @@ def main():
     application.run_polling()
 
 if __name__ == '__main__':
+
     main()
